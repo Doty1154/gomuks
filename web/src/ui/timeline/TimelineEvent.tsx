@@ -35,7 +35,7 @@ import URLPreview from "../urlpreview/URLPreview.tsx"
 import EventEditHistory from "./EventEditHistory.tsx"
 import ReadReceipts from "./ReadReceipts.tsx"
 import { ReplyIDBody } from "./ReplyBody.tsx"
-import { ContentErrorBoundary, HiddenEvent, getBodyType, getPerMessageProfile, isSmallEvent } from "./content"
+import { ContentErrorBoundary, HiddenEvent, getBodyType, getPerMessageProfile, isSmallEvent, ACLBody, PowerLevelBody, RoomAvatarBody, RoomNameBody, PolicyRuleBody } from "./content" // From https://github.com/gomuks/gomuks/pull/623
 import ErrorIcon from "@/icons/error.svg?react"
 import PendingIcon from "@/icons/pending.svg?react"
 import SentIcon from "@/icons/sent.svg?react"
@@ -185,7 +185,7 @@ const TimelineEvent = ({
 	if (evt.type === "m.room.member") {
 		wrapperClassNames.push("membership-event")
 	}
-	if (BodyType === HiddenEvent) {
+    if (BodyType === HiddenEvent || BodyType === ACLBody || BodyType === PowerLevelBody || BodyType === RoomAvatarBody || BodyType === RoomNameBody || BodyType === PolicyRuleBody) { // Also from https://github.com/gomuks/gomuks/pull/623
 		wrapperClassNames.push("hidden-event")
 	}
 	if (evt.sender === client.userID) {
