@@ -519,7 +519,7 @@ export class StateStore {
 			badge: "gomuks.png",
 			// timestamp: evt.timestamp,
 			// image: ...,
-			silent: !sound,
+			//silent: !sound,
 			tag: rowid.toString(),
 		})
 		room.openNotifications.set(rowid, notif)
