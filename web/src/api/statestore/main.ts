@@ -330,7 +330,7 @@ export class StateStore {
 				&& !this.localPreferenceCache.web_push
 			) {
 				for (const notification of data.notifications) {
-					this.showNotification(room, notification.event_rowid, notification.sound)
+					this.showNotification(room, notification.event_rowid,) //notification.sound)
 				}
 			}
 			if (this.activeRoomID === roomID && this.activeRoomIsPreview) {
@@ -501,7 +501,7 @@ export class StateStore {
 		return this.#frequentlyUsedEmoji
 	}
 
-	showNotification(room: RoomStateStore, rowid: EventRowID, sound: boolean) {
+	showNotification(room: RoomStateStore, rowid: EventRowID) {// sound: boolean) {
 		const evt = room.eventsByRowID.get(rowid)
 		if (!evt || typeof evt.content.body !== "string") {
 			return
@@ -515,16 +515,16 @@ export class StateStore {
 		const roomName = room.meta.current.name ?? "Unnamed room"
 		const senderName = getDisplayname(evt.sender, memberEvt?.content)
 		const title = senderName === roomName ? senderName : `${senderName} (${roomName})`
-		if (sound) {
-			(document.getElementById("default-notification-sound") as HTMLAudioElement)?.play()
-		}
+		// if (sound) {
+		// 	(document.getElementById("default-notification-sound") as HTMLAudioElement)?.play()
+		// }
 		const notif = new Notification(title, {
 			body,
 			icon,
 			badge: "gomuks.png",
 			// timestamp: evt.timestamp,
 			// image: ...,
-			silent: !sound,
+			//silent: !sound,
 			tag: rowid.toString(),
 		})
 		room.openNotifications.set(rowid, notif)

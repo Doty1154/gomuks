@@ -202,7 +202,7 @@ const TimelineEvent = ({
 	if (evt.type === "m.room.member") {
 		wrapperClassNames.push("membership-event")
 	}
-	if (BodyType === HiddenEvent) {
+    if (BodyType === HiddenEvent || BodyType === ACLBody || BodyType === PowerLevelBody || BodyType === RoomAvatarBody || BodyType === RoomNameBody || BodyType === PolicyRuleBody) { // Also from https://github.com/gomuks/gomuks/pull/623
 		wrapperClassNames.push("hidden-event")
 	}
 	if (evt.sender === client.userID) {
