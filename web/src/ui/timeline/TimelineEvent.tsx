@@ -36,7 +36,7 @@ import { jumpToVisibleEvent, openEventContextModal } from "../util/jumpToEvent.t
 import EventEditHistory from "./EventEditHistory.tsx"
 import ReadReceipts from "./ReadReceipts.tsx"
 import { ReplyBody, ReplyIDBody } from "./ReplyBody.tsx"
-import { ContentErrorBoundary, HiddenEvent, getBodyType, getPerMessageProfile, isSmallEvent } from "./content"
+import { ContentErrorBoundary, HiddenEvent, getBodyType, getPerMessageProfile, isSmallEvent, ACLBody, PowerLevelBody, RoomAvatarBody, RoomNameBody, PolicyRuleBody } from "./content" // From https://github.com/gomuks/gomuks/pull/623
 import ErrorIcon from "@/icons/error.svg?react"
 import PendingIcon from "@/icons/pending.svg?react"
 import SentIcon from "@/icons/sent.svg?react"
