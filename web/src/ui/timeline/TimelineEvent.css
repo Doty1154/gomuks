@@ -188,6 +188,18 @@ div.timeline-event {
 		}
 	}
 
+	&.same-thread {
+		margin-top: var(--timeline-message-gap-same-thread);
+
+		&.same-sender > blockquote.reply-body {
+			padding: 0 .5rem .25rem;
+		}
+
+		&.same-sender div.reply-sender {
+			display: none;
+		}
+	}
+
 	&.reply-above {
 		grid-template:
 			"cmc                          cmc                        cmc      empty"  0
@@ -234,7 +246,7 @@ span.event-sender {
 	&.sender-color-9 { color: var(--sender-color-9); }
 }
 
-div.event-content > div.event-reactions {
+div.event-reactions {
 	display: flex;
 	flex-wrap: wrap;
 	gap: .25rem;

@@ -46,7 +46,6 @@ div.settings-view {
 	div.preference-table {
 		display: grid;
 		grid-template-columns: auto 1fr 1fr 1fr 1fr;
-		grid-template-rows: repeat(auto-fit, 2.5rem);
 		grid-gap: .25rem;
 
 		> div.name {
@@ -97,6 +96,7 @@ div.settings-view {
 		> div.vscode-wrapper {
 			position: fixed;
 			inset: 0;
+			top: var(--window-top-margin);
 			z-index: 10;
 			background-color: var(--background-color);
 

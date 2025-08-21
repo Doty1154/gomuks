@@ -1,5 +1,5 @@
 // gomuks - A Matrix client written in Go.
-// Copyright (C) 2024 Tulir Asokan
+// Copyright (C) 2025 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -35,8 +35,8 @@ import URLPreview from "../urlpreview/URLPreview.tsx"
 import { jumpToVisibleEvent, openEventContextModal } from "../util/jumpToEvent.tsx"
 import EventEditHistory from "./EventEditHistory.tsx"
 import ReadReceipts from "./ReadReceipts.tsx"
-import { ReplyIDBody } from "./ReplyBody.tsx"
-import { ContentErrorBoundary, HiddenEvent, getBodyType, getPerMessageProfile, isSmallEvent, ACLBody, PowerLevelBody, RoomAvatarBody, RoomNameBody, PolicyRuleBody } from "./content" // From https://github.com/gomuks/gomuks/pull/623
+import { ReplyBody, ReplyIDBody } from "./ReplyBody.tsx"
+import { ContentErrorBoundary, HiddenEvent, getBodyType, getPerMessageProfile, isSmallEvent } from "./content"
 import ErrorIcon from "@/icons/error.svg?react"
 import PendingIcon from "@/icons/pending.svg?react"
 import SentIcon from "@/icons/sent.svg?react"
@@ -49,6 +49,7 @@ export interface TimelineEventProps {
 	prevEvt: MemDBEvent | null
 	disableMenu?: boolean
 	smallReplies?: boolean
+	smallThreads?: boolean
 	isFocused?: boolean
 	viewType: TimelineEventViewType
 }
@@ -105,7 +106,7 @@ const EventURLPreviews = ({ event, room }: {
 }
 
 const TimelineEvent = ({
-	evt, prevEvt, disableMenu, smallReplies, isFocused, viewType,
+	evt, prevEvt, disableMenu, smallReplies, smallThreads, isFocused, viewType,
 }: TimelineEventProps) => {
 	const roomCtx = useRoomContext()
 	const client = use(ClientContext)!
@@ -188,7 +189,13 @@ const TimelineEvent = ({
 	if (isRedacted) {
 		wrapperClassNames.push("redacted-event")
 	}
-	const BodyType = getBodyType(evt, isRedacted)
+	const relatesTo = getRelatesTo(evt)
+	const replyTo = relatesTo?.["m.in_reply_to"]?.event_id
+	const isFallbackReply = relatesTo?.is_falling_back
+	const threadRoot = relatesTo?.rel_type === "m.thread" && isEventID(relatesTo.event_id)
+		? relatesTo.event_id : undefined
+	const isSmallThreadMessage = Boolean(threadRoot && smallThreads)
+	const BodyType = getBodyType(evt, isRedacted, isSmallThreadMessage)
 	if (evt.unread_type & UnreadType.Highlight) {
 		wrapperClassNames.push("highlight")
 	}
@@ -232,16 +239,12 @@ const TimelineEvent = ({
 		</div>
 	}
 	const isSmallBodyType = isSmallEvent(BodyType)
-	const relatesTo = getRelatesTo(evt)
-	const replyTo = relatesTo?.["m.in_reply_to"]?.event_id
-	const threadRoot = relatesTo?.rel_type === "m.thread" && isEventID(relatesTo.event_id)
-		? relatesTo.event_id : undefined
-	const isFallbackReply = relatesTo?.is_falling_back
 	let replyAboveMessage: JSX.Element | null = null
 	let replyInMessage: JSX.Element | null = null
 	if (
 		isEventID(replyTo)
 		&& BodyType !== HiddenEvent
+		&& !isSmallThreadMessage
 		&& !isRedacted
 		&& viewType !== "edit-history"
 		&& (!isFallbackReply || viewType !== "thread")
@@ -283,13 +286,25 @@ const TimelineEvent = ({
 	if (viewType === "edit-history") {
 		wrapperClassNames.push("edit-history-event")
 	}
+	if (isSmallThreadMessage) {
+		const prevRelatesTo = getRelatesTo(prevEvt)
+		if (dateSeparator === null && prevRelatesTo?.rel_type === "m.thread" && prevRelatesTo.event_id === threadRoot) {
+			wrapperClassNames.push("same-thread")
+		}
+		wrapperClassNames.push("small-thread-message")
+		eventTimeOnly = true
+		renderAvatar = !smallAvatar
+		smallAvatar = false
+	}
+
 	const fullTime = fullTimeFormatter.format(eventTS)
 	const shortTime = formatShortTime(eventTS)
 	const mainEvent = <div
 		data-event-id={evt.event_id}
 		className={wrapperClassNames.join(" ")}
 		onContextMenu={onContextMenu}
-		onClick={!disableMenu && viewType !== "edit-history" && isMobileDevice ? onClick : undefined}
+		onClick={!disableMenu && viewType !== "edit-history" && isMobileDevice && !isSmallThreadMessage
+			? onClick : undefined}
 	>
 		{!disableMenu && (!isMobileDevice || forceContextMenuOnMobile) && <div
 			className={`context-menu-container ${forceContextMenuOpen ? "force-open" : ""}`}
@@ -340,7 +355,14 @@ const TimelineEvent = ({
 		</div> : <div className="event-time-only" onClick={onClickTimestamp}>
 			<span className="event-time" title={fullTime}>{shortTime}</span>
 		</div>}
-		<div className="event-content">
+		{isSmallThreadMessage ? <ReplyBody
+			roomCtx={roomCtx}
+			event={evt}
+			isThread={true}
+			threadRoot={threadRoot}
+			timelineThreadMsg={true}
+			reactions={evt.reactions ? <EventReactions reactions={evt.reactions} onRereact={onRereact} /> : null}
+		/> : <div className="event-content">
 			{replyInMessage}
 			<ContentErrorBoundary>
 				<BodyType room={roomCtx.store} sender={memberEvt} event={evt}/>
@@ -354,7 +376,7 @@ const TimelineEvent = ({
 				(edited at {formatShortTime(editEventTS)})
 			</div> : null}
 			{evt.reactions ? <EventReactions reactions={evt.reactions} onRereact={onRereact} /> : null}
-		</div>
+		</div>}
 		{!evt.event_id.startsWith("~")
 			&& roomCtx.store.preferences.display_read_receipts
 			&& viewType === "timeline"

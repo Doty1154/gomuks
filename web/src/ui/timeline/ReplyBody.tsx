@@ -13,7 +13,7 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
-import { use } from "react"
+import React, { JSX, MouseEvent, use } from "react"
 import { getAvatarThumbnailURL, getUserColorIndex } from "@/api/media.ts"
 import {
 	applyPerMessageSender,
@@ -28,7 +28,7 @@ import ClientContext from "../ClientContext.ts"
 import MainScreenContext from "../MainScreenContext.ts"
 import { RoomContextData } from "../roomview/roomcontext.ts"
 import TooltipButton from "../util/TooltipButton.tsx"
-import { jumpToEvent } from "../util/jumpToEvent.tsx"
+import { jumpToEvent, jumpToVisibleEvent } from "../util/jumpToEvent.tsx"
 import { ContentErrorBoundary, getBodyType, getPerMessageProfile } from "./content"
 import CloseIcon from "@/icons/close.svg?react"
 import EditIcon from "@/icons/edit.svg?react"
@@ -44,6 +44,8 @@ interface ReplyBodyProps {
 	isThread: boolean
 	threadRoot?: EventID
 	small?: boolean
+	timelineThreadMsg?: boolean
+	reactions?: JSX.Element | null
 	isEditing?: boolean
 	onClose?: (evt: React.MouseEvent) => void
 	isSilent?: boolean
@@ -79,6 +81,7 @@ export const ReplyIDBody = ({ roomCtx, eventID, isThread, threadRoot, small }: R
 
 export const ReplyBody = ({
 	roomCtx, event, onClose, isThread, threadRoot, isEditing, small,
+	timelineThreadMsg, reactions,
 	isSilent, onSetSilent,
 	isExplicitInThread, onSetExplicitInThread,
 	startNewThread, onSetStartNewThread,
@@ -106,22 +109,26 @@ export const ReplyBody = ({
 	}
 	const perMessageSender = getPerMessageProfile(event)
 	const renderMemberEvtContent = applyPerMessageSender(memberEvtContent, perMessageSender)
-	const userColorIndex = getUserColorIndex(perMessageSender?.id ?? event.sender)
+	let userColorIndex = getUserColorIndex(perMessageSender?.id ?? event.sender)
+	if (timelineThreadMsg && threadRoot) {
+		classNames.push("timeline-thread-msg")
+		userColorIndex = getUserColorIndex(threadRoot)
+	}
 	classNames.push(`sender-color-${userColorIndex}`)
-	const onClick = () => {
+	const onClick = (evt: MouseEvent<HTMLQuoteElement>) => {
 		if (isThread && threadRoot) {
 			mainScreen.setRightPanel({
 				type: "thread",
 				threadRoot,
 			})
-		} else {
+		} else if (!jumpToVisibleEvent(event.event_id, evt.currentTarget.closest(".timeline-list"))) {
 			jumpToEvent(roomCtx, event.event_id)
 		}
 	}
 	return <blockquote className={classNames.join(" ")} onClick={onClick}>
 		{small && <div className="reply-spine"/>}
 		<div className="reply-sender">
-			<div
+			{!timelineThreadMsg && <div
 				className="sender-avatar"
 				title={perMessageSender ? `${perMessageSender.id} via ${event.sender}` : event.sender}
 			>
@@ -131,7 +138,7 @@ export const ReplyBody = ({
 					src={getAvatarThumbnailURL(perMessageSender?.id ?? event.sender, renderMemberEvtContent)}
 					alt=""
 				/>
-			</div>
+			</div>}
 			<span
 				className={`event-sender sender-color-${userColorIndex}`}
 				title={perMessageSender ? perMessageSender.id : event.sender}
@@ -190,5 +197,6 @@ export const ReplyBody = ({
 		<ContentErrorBoundary>
 			<BodyType room={room} event={event} sender={memberEvt}/>
 		</ContentErrorBoundary>
+		{reactions}
 	</blockquote>
 }

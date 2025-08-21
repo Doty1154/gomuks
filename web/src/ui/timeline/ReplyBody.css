@@ -41,6 +41,12 @@ blockquote.reply-body {
 		}
 	}
 
+	&.timeline-thread-msg {
+		grid-area: content;
+		border-left-width: 4px;
+		margin: 0;
+	}
+
 	pre {
 		display: inline;
 
@@ -53,7 +59,7 @@ blockquote.reply-body {
 		margin: .5rem .5rem 0;
 	}
 
-	&:hover, &.composer {
+	&:hover, &.composer, &.timeline-thread-msg {
 		> div.message-text {
 			color: var(--text-color);
 		}
@@ -136,5 +142,9 @@ blockquote.reply-body {
 				}
 			}
 		}
+	}
+
+	> div.event-reactions {
+		margin-bottom: 0;
 	}
 }
