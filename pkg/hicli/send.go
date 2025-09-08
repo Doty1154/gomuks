@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -84,48 +85,24 @@ func (h *HiClient) SendMessage(
 	mentions *event.Mentions,
 	urlPreviews []*event.BeeperLinkPreview,
 ) (*database.Event, error) {
-	if text == "/discardsession" {
-		err := h.CryptoStore.RemoveOutboundGroupSession(ctx, roomID)
-		if err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf("outbound megolm session successfully discarded")
+	hasCommand := base != nil && base.MSC4332BotCommand != nil
+	if hasCommand && mentions.Has(FakeGomuksSender) {
+		return h.ProcessCommand(ctx, roomID, base.MSC4332BotCommand, relatesTo)
 	}
 	var unencrypted bool
 	if strings.HasPrefix(text, "/unencrypted ") {
 		text = strings.TrimPrefix(text, "/unencrypted ")
 		unencrypted = true
 	}
-	if strings.HasPrefix(text, "/raw ") {
+	var ts int64
+	if strings.HasPrefix(text, "/timestamp ") {
 		parts := strings.SplitN(text, " ", 3)
-		if len(parts) < 2 || len(parts[1]) == 0 {
-			return nil, fmt.Errorf("invalid /raw command")
+		var err error
+		ts, err = strconv.ParseInt(parts[1], 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("malformed timestamp: %w", err)
 		}
-		var content json.RawMessage
-		if len(parts) == 3 {
-			content = json.RawMessage(parts[2])
-		} else {
-			content = json.RawMessage("{}")
-		}
-		if !json.Valid(content) {
-			return nil, fmt.Errorf("invalid JSON in /raw command")
-		}
-		return h.send(ctx, roomID, event.Type{Type: parts[1]}, content, "", unencrypted, false)
-	} else if strings.HasPrefix(text, "/rawstate ") {
-		parts := strings.SplitN(text, " ", 4)
-		if len(parts) < 4 || len(parts[1]) == 0 {
-			return nil, fmt.Errorf("invalid /rawstate command")
-		}
-		if parts[2] == "{" || strings.HasPrefix(parts[2], `{"`) {
-			parts[3] = parts[2] + parts[3]
-			parts[2] = ""
-		}
-		content := json.RawMessage(parts[3])
-		if !json.Valid(content) {
-			return nil, fmt.Errorf("invalid JSON in /rawstate command")
-		}
-		_, err := h.SetState(ctx, roomID, event.Type{Type: parts[1], Class: event.StateEventType}, parts[2], content)
-		return nil, err
+		text = parts[2]
 	}
 	var rawInputBody bool
 	if strings.HasPrefix(text, "/rawinputbody ") {
@@ -153,6 +130,14 @@ func (h *HiClient) SendMessage(
 		text = strings.TrimPrefix(text, "/html ")
 		content = format.HTMLToContent(strings.Replace(text, "\n", "<br>", -1))
 	} else if text != "" {
+		hasUnstructedCommand := unencrypted || rawInputBody || ts != 0 || msgType != event.MsgText
+		if !hasCommand && strings.HasPrefix(text, "/") && !hasUnstructedCommand {
+			if strings.HasPrefix(text, "//") {
+				text = text[1:]
+			} else {
+				return makeFakeEvent(roomID, "Use two slashes to send a non-command message starting with a slash"), nil
+			}
+		}
 		content = format.RenderMarkdownCustom(text, defaultNoHTML)
 	}
 	if rawInputBody {
@@ -217,7 +202,7 @@ func (h *HiClient) SendMessage(
 		content.MsgType = ""
 		evtType = event.EventSticker
 	}
-	return h.send(ctx, roomID, evtType, &event.Content{Parsed: content, Raw: extra}, origText, unencrypted, false)
+	return h.send(ctx, roomID, evtType, &event.Content{Parsed: content, Raw: extra}, origText, unencrypted, false, ts)
 }
 
 func (h *HiClient) MarkRead(ctx context.Context, roomID id.RoomID, eventID id.EventID, receiptType event.ReceiptType) error {
@@ -292,7 +277,7 @@ func (h *HiClient) Send(
 		// TODO implement
 		return nil, fmt.Errorf("redaction is not supported")
 	}
-	return h.send(ctx, roomID, evtType, content, "", disableEncryption, synchronous)
+	return h.send(ctx, roomID, evtType, content, "", disableEncryption, synchronous, 0)
 }
 
 func (h *HiClient) Resend(ctx context.Context, txnID string) (*database.Event, error) {
@@ -311,7 +296,7 @@ func (h *HiClient) Resend(ctx context.Context, txnID string) (*database.Event, e
 		return nil, fmt.Errorf("unknown room")
 	}
 	dbEvt.SendError = ""
-	go h.actuallySend(context.WithoutCancel(ctx), room, dbEvt, event.Type{Type: dbEvt.Type, Class: event.MessageEventType}, false)
+	go h.actuallySend(context.WithoutCancel(ctx), room, dbEvt, event.Type{Type: dbEvt.Type, Class: event.MessageEventType}, false, false)
 	return dbEvt, nil
 }
 
@@ -323,6 +308,7 @@ func (h *HiClient) send(
 	overrideEditSource string,
 	disableEncryption bool,
 	synchronous bool,
+	ts int64,
 ) (*database.Event, error) {
 	room, err := h.DB.Room.Get(ctx, roomID)
 	if err != nil {
@@ -342,6 +328,11 @@ func (h *HiClient) send(
 		SendError:       "not sent",
 		Reactions:       map[string]int{},
 		LastEditRowID:   ptr.Ptr(database.EventRowID(0)),
+	}
+	var overrideTimestamp bool
+	if ts > 0 {
+		dbEvt.Timestamp = jsontime.UMInt(ts)
+		overrideTimestamp = true
 	}
 	if room.EncryptionEvent != nil && evtType != event.EventReaction && !disableEncryption {
 		dbEvt.Type = event.EventEncrypted.Type
@@ -382,9 +373,9 @@ func (h *HiClient) send(
 		}
 	}()
 	if synchronous {
-		h.actuallySend(ctx, room, dbEvt, evtType, true)
+		h.actuallySend(ctx, room, dbEvt, evtType, true, overrideTimestamp)
 	} else {
-		go h.actuallySend(ctx, room, dbEvt, evtType, false)
+		go h.actuallySend(ctx, room, dbEvt, evtType, false, overrideTimestamp)
 	}
 	return dbEvt, nil
 }
@@ -406,6 +397,7 @@ func (h *HiClient) actuallySend(
 	dbEvt *database.Event,
 	evtType event.Type,
 	synchronous bool,
+	overrideTimestamp bool,
 ) {
 	if !synchronous {
 		l := h.getSendLock(room.ID)
@@ -452,11 +444,14 @@ func (h *HiClient) actuallySend(
 		}
 	}
 	var resp *mautrix.RespSendEvent
-	resp, err = h.Client.SendMessageEvent(ctx, room.ID, evtType, dbEvt.Content, mautrix.ReqSendEvent{
-		Timestamp:     dbEvt.Timestamp.UnixMilli(),
+	req := mautrix.ReqSendEvent{
 		TransactionID: dbEvt.TransactionID,
 		DontEncrypt:   true,
-	})
+	}
+	if overrideTimestamp {
+		req.Timestamp = dbEvt.Timestamp.UnixMilli()
+	}
+	resp, err = h.Client.SendMessageEvent(ctx, room.ID, evtType, dbEvt.Content, req)
 	if err != nil {
 		dbEvt.SendError = err.Error()
 		err = fmt.Errorf("failed to send event: %w", err)
