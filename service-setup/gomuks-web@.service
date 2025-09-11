@@ -1,0 +1,16 @@
+[Unit]
+Description=Gomuks Web service for %i
+After=gomuks-update.service
+Requires=gomuks-update.service
+[Service]
+Type=simple
+WorkingDirectory=%h/gomuks
+LogRateLimitIntervalSec=0
+LogRateLimitBurst=0
+ExecStart=%h/gomuks/gomuks
+Restart=always
+Environment=GOMUKS_ROOT=%h/gomuksdata/%i
+Restart=always
+RestartSec=10
+[Install]
+WantedBy=default.target

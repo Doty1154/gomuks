@@ -1,0 +1,23 @@
+[Unit]
+Description=Build and update gomuks
+[Service]
+Type=oneshot
+WorkingDirectory=%h/gomuks
+RemainAfterExit=yes
+LogRateLimitIntervalSec=0
+LogRateLimitBurst=0
+ExecStart=-chmod -Rv 770 %h/.cache/go-build
+ExecStart=-rm -rvf %h/.cache/go-build
+ExecStart=-rm -rvf %h/.npm
+ExecStart=-chmod -Rv 770 %h/go
+ExecStart=-rm -rfv %h/go
+ExecStart=-git pull -v
+ExecStart=-git fetch -v
+ExecStart=-git pull -v
+ExecStart=-git fetch -v
+ExecStart=-rm -rf %h/gomuks/web/dist
+ExecStart=-rm -rf %h/gomuks/web/node_modules
+ExecStart=-%h/gomuks/build.sh
+ExecStart=-find %h/gomuks -name "*.flac" -print -type f -delete
+[Install]
+WantedBy=default.target

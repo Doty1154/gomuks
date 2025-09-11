@@ -1,4 +1,14 @@
 # gomuks
+A setup for running the software via systemd can be found in the service-setup folder
+You can launch gomuks via the install script here.
+https://raw.githubusercontent.com/Doty1154/gomuks/raw/refs/heads/main/service-setup/install.sh
+
+
+```
+wget https://raw.githubusercontent.com/Doty1154/gomuks/raw/refs/heads/main/service-setup/install.sh
+bash ./install.sh
+```
+
 ![Languages](https://img.shields.io/github/languages/top/gomuks/gomuks.svg)
 [![License](https://img.shields.io/github/license/gomuks/gomuks.svg)](LICENSE)
 [![Release](https://img.shields.io/github/release/gomuks/gomuks/all.svg)](https://github.com/gomuks/gomuks/releases)
