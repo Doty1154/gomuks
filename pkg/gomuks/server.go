@@ -43,6 +43,7 @@ import (
 	"maunium.net/go/mautrix"
 
 	"go.mau.fi/gomuks/pkg/hicli"
+	"go.mau.fi/gomuks/version"
 )
 
 func (gmx *Gomuks) CreateAPIRouter() http.Handler {
@@ -88,8 +89,8 @@ func (gmx *Gomuks) StartServer() {
 		gmx.Log.Warn().Msg("Frontend not found")
 	} else {
 		router.Handle("/", gmx.FrontendCacheMiddleware(http.FileServerFS(frontend)))
-		if gmx.Commit != "unknown" && !gmx.BuildTime.IsZero() {
-			gmx.frontendETag = fmt.Sprintf(`"%s-%s"`, gmx.Commit, gmx.BuildTime.Format(time.RFC3339))
+		if version.Gomuks.Commit != "unknown" && !version.Gomuks.BuildTime.IsZero() {
+			gmx.frontendETag = fmt.Sprintf(`"%s-%s"`, version.Gomuks.Commit, version.Gomuks.BuildTime.Format(time.RFC3339))
 		}
 		indexFile, err := frontend.Open("index.html")
 		if err != nil {
@@ -284,18 +285,10 @@ func (gmx *Gomuks) doBasicAuth(r *http.Request) (found, correct bool) {
 	return
 }
 
-func isImageFetch(header http.Header) bool {
-	return header.Get("Sec-Fetch-Site") == "cross-site" &&
-		header.Get("Sec-Fetch-Mode") == "no-cors" &&
-		header.Get("Sec-Fetch-Dest") == "image"
-}
-
 func (gmx *Gomuks) AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/media") &&
-			isImageFetch(r.Header) &&
-			gmx.validateAuth(r.URL.Query().Get("image_auth"), true) &&
-			r.URL.Query().Get("encrypted") == "false" {
+			gmx.validateAuth(r.URL.Query().Get("image_auth"), true) {
 			next.ServeHTTP(w, r)
 			return
 		}

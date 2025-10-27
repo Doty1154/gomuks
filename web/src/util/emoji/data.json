@@ -572,6 +572,16 @@
       ]
     },
     {
+      "u": "🫩",
+      "c": 7,
+      "t": "Face With Bags Under Eyes",
+      "n": "face_with_bags_under_eyes",
+      "s": [
+        "facewithbagsundereyes",
+        "facewitheyebags"
+      ]
+    },
+    {
       "u": "😷",
       "c": 7,
       "t": "Face With Medical Mask",
@@ -1642,6 +1652,24 @@
       "n": "zzz",
       "s": [
         "zzz"
+      ]
+    },
+    {
+      "u": "🫪",
+      "c": 7,
+      "t": "Distorted Face",
+      "n": "distorted_face",
+      "s": [
+        "distortedface"
+      ]
+    },
+    {
+      "u": "🫯",
+      "c": 7,
+      "t": "Fight Cloud",
+      "n": "fight_cloud",
+      "s": [
+        "fightcloud"
       ]
     },
     {
@@ -5385,6 +5413,33 @@
       ]
     },
     {
+      "u": "🫆",
+      "c": 6,
+      "t": "Fingerprint",
+      "n": "fingerprint",
+      "s": [
+        "fingerprint"
+      ]
+    },
+    {
+      "u": "🫈",
+      "c": 6,
+      "t": "Hairy Creature",
+      "n": "hairy_creature",
+      "s": [
+        "hairycreature"
+      ]
+    },
+    {
+      "u": "🧑‍🩰",
+      "c": 6,
+      "t": "Ballet Dancer",
+      "n": "ballet_dancer",
+      "s": [
+        "balletdancer"
+      ]
+    },
+    {
       "u": "🏻",
       "c": 2,
       "t": "Light Skin Tone",
@@ -6451,6 +6506,51 @@
       ]
     },
     {
+      "u": "🦀",
+      "c": 1,
+      "t": "Crab",
+      "n": "crab",
+      "s": [
+        "crab"
+      ]
+    },
+    {
+      "u": "🦞",
+      "c": 1,
+      "t": "Lobster",
+      "n": "lobster",
+      "s": [
+        "lobster"
+      ]
+    },
+    {
+      "u": "🦐",
+      "c": 1,
+      "t": "Shrimp",
+      "n": "shrimp",
+      "s": [
+        "shrimp"
+      ]
+    },
+    {
+      "u": "🦑",
+      "c": 1,
+      "t": "Squid",
+      "n": "squid",
+      "s": [
+        "squid"
+      ]
+    },
+    {
+      "u": "🦪",
+      "c": 1,
+      "t": "Oyster",
+      "n": "oyster",
+      "s": [
+        "oyster"
+      ]
+    },
+    {
       "u": "🐌",
       "c": 1,
       "t": "Snail",
@@ -6851,6 +6951,24 @@
       ]
     },
     {
+      "u": "🪾",
+      "c": 1,
+      "t": "Leafless Tree",
+      "n": "leafless_tree",
+      "s": [
+        "leaflesstree"
+      ]
+    },
+    {
+      "u": "🫍",
+      "c": 1,
+      "t": "Orca",
+      "n": "orca",
+      "s": [
+        "orca"
+      ]
+    },
+    {
       "u": "🍇",
       "c": 4,
       "t": "Grapes",
@@ -7196,6 +7314,15 @@
       "n": "brown_mushroom",
       "s": [
         "brownmushroom"
+      ]
+    },
+    {
+      "u": "🫜",
+      "c": 4,
+      "t": "Root Vegetable",
+      "n": "root_vegetable",
+      "s": [
+        "rootvegetable"
       ]
     },
     {
@@ -7664,51 +7791,6 @@
       "n": "takeout_box",
       "s": [
         "takeoutbox"
-      ]
-    },
-    {
-      "u": "🦀",
-      "c": 4,
-      "t": "Crab",
-      "n": "crab",
-      "s": [
-        "crab"
-      ]
-    },
-    {
-      "u": "🦞",
-      "c": 4,
-      "t": "Lobster",
-      "n": "lobster",
-      "s": [
-        "lobster"
-      ]
-    },
-    {
-      "u": "🦐",
-      "c": 4,
-      "t": "Shrimp",
-      "n": "shrimp",
-      "s": [
-        "shrimp"
-      ]
-    },
-    {
-      "u": "🦑",
-      "c": 4,
-      "t": "Squid",
-      "n": "squid",
-      "s": [
-        "squid"
-      ]
-    },
-    {
-      "u": "🦪",
-      "c": 4,
-      "t": "Oyster",
-      "n": "oyster",
-      "s": [
-        "oyster"
       ]
     },
     {
@@ -10080,6 +10162,15 @@
       ]
     },
     {
+      "u": "🛘",
+      "c": 9,
+      "t": "Landslide",
+      "n": "landslide",
+      "s": [
+        "landslide"
+      ]
+    },
+    {
       "u": "🎃",
       "c": 0,
       "t": "Jack-O-Lantern",
@@ -11571,6 +11662,15 @@
       ]
     },
     {
+      "u": "🪉",
+      "c": 5,
+      "t": "Harp",
+      "n": "harp",
+      "s": [
+        "harp"
+      ]
+    },
+    {
       "u": "📱",
       "c": 5,
       "t": "Mobile Phone",
@@ -12838,6 +12938,15 @@
       ]
     },
     {
+      "u": "🪏",
+      "c": 5,
+      "t": "Shovel",
+      "n": "shovel",
+      "s": [
+        "shovel"
+      ]
+    },
+    {
       "u": "⚗️",
       "c": 5,
       "t": "Alembic",
@@ -13275,6 +13384,24 @@
       "s": [
         "identificationcard",
         "idcard"
+      ]
+    },
+    {
+      "u": "🪊",
+      "c": 5,
+      "t": "Trombone",
+      "n": "trombone",
+      "s": [
+        "trombone"
+      ]
+    },
+    {
+      "u": "🪎",
+      "c": 5,
+      "t": "Treasure Chest",
+      "n": "treasure_chest",
+      "s": [
+        "treasurechest"
       ]
     },
     {
@@ -14540,6 +14667,15 @@
       "n": "tm",
       "s": [
         "tm"
+      ]
+    },
+    {
+      "u": "🫟",
+      "c": 8,
+      "t": "Splatter",
+      "n": "splatter",
+      "s": [
+        "splatter"
       ]
     },
     {
@@ -15984,6 +16120,17 @@
         "flag-cp",
         "clippertonisland",
         "flagcp"
+      ]
+    },
+    {
+      "u": "🇨🇶",
+      "c": 3,
+      "t": "Flag: Sark",
+      "n": "flag-sark",
+      "s": [
+        "flag-sark",
+        "flagcq",
+        "sark"
       ]
     },
     {

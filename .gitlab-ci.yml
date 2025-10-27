@@ -17,7 +17,7 @@ variables:
   GOTOOLCHAIN: local
 
 wasm:
-  image: golang:1.25-alpine
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/golang:1.25-alpine
   stage: frontend
   cache:
     paths:
@@ -26,6 +26,7 @@ wasm:
   - mkdir -p .cache
   - export GOPATH="$CI_PROJECT_DIR/.cache"
   - export GOCACHE="$CI_PROJECT_DIR/.cache/build"
+  - apk add --no-cache git
   script:
   - cd web
   - go run ../pkg/hicli/cmdspec/print src/api/types/stdcommands.json src/api/types/stdcommands.d.ts
@@ -37,7 +38,7 @@ wasm:
     expire_in: 1 hour
 
 frontend:
-  image: node:24-alpine
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/node:24-alpine
   stage: frontend
   cache:
     paths:
@@ -56,7 +57,7 @@ frontend:
   - wasm
 
 deploy wasmuks:
-  image: golang:1.25-alpine
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/golang:1.25-alpine
   stage: frontend
   tags:
   - webdeploy
@@ -89,22 +90,30 @@ deploy wasmuks:
   - export GO_LDFLAGS="-s -w -linkmode external -extldflags -static -X go.mau.fi/gomuks/version.Tag=$CI_COMMIT_TAG -X go.mau.fi/gomuks/version.Commit=$CI_COMMIT_SHA -X 'go.mau.fi/gomuks/version.BuildTime=`date -Iseconds`' -X 'maunium.net/go/mautrix.GoModVersion=$MAUTRIX_VERSION'"
   script:
   - go build -ldflags "$GO_LDFLAGS" ./cmd/gomuks
+  - go build -ldflags "$GO_LDFLAGS" ./cmd/gomuks-terminal
   artifacts:
     paths:
     - gomuks
+    - gomuks-terminal
   dependencies:
   - frontend
   needs:
   - frontend
 
 .build-docker: &build-docker
-  image: docker:latest
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:latest
   stage: docker
   before_script:
-  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  - docker login -u "$CI_DEPENDENCY_PROXY_USER" -p "$CI_DEPENDENCY_PROXY_PASSWORD" "$CI_DEPENDENCY_PROXY_SERVER"
+  - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
   script:
   - docker pull $CI_REGISTRY_IMAGE:latest || true
-  - docker build --pull --cache-from $CI_REGISTRY_IMAGE:latest --tag $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA-$DOCKER_ARCH . --file Dockerfile.ci
+  - |
+    docker build \
+      --pull --cache-from $CI_REGISTRY_IMAGE:latest \
+      --tag $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA-$DOCKER_ARCH \
+      --build-arg DOCKER_HUB=$CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX \
+      . --file Dockerfile.ci
   - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA-$DOCKER_ARCH
   after_script:
   - docker rmi $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA-$DOCKER_ARCH
@@ -152,7 +161,8 @@ macos/arm64:
   - export LIBRARY_PATH=$(brew --prefix)/lib
   - export CPATH=$(brew --prefix)/include
   script:
-  - go build -ldflags "$GO_LDFLAGS" -o gomuks ./cmd/gomuks
+  - go build -ldflags "$GO_LDFLAGS" ./cmd/gomuks
+  - go build -ldflags "$GO_LDFLAGS" ./cmd/gomuks-terminal
   - install_name_tool -change $(brew --prefix)/opt/libolm/lib/libolm.3.dylib @rpath/libolm.3.dylib gomuks
   - install_name_tool -add_rpath @executable_path gomuks
   - install_name_tool -add_rpath /opt/homebrew/opt/libolm/lib gomuks
@@ -161,6 +171,7 @@ macos/arm64:
   artifacts:
     paths:
     - gomuks
+    - gomuks-terminal
     - libolm.3.dylib
   dependencies:
   - frontend
@@ -192,12 +203,13 @@ docker/arm64:
     DOCKER_ARCH: arm64
 
 docker/manifest:
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:latest
   stage: docker
   variables:
     GIT_STRATEGY: none
   before_script:
   - "mkdir -p $HOME/.docker && echo '{\"experimental\": \"enabled\"}' > $HOME/.docker/config.json"
-  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
   needs:
   - docker/amd64
   - docker/arm64

@@ -18,18 +18,18 @@
 package main
 
 import (
-	"bufio"
+	"cmp"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
 	"go.mau.fi/util/exerrors"
+	"go.mau.fi/util/unicodeurls"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -86,25 +86,56 @@ func unifiedToUnicode(input string) string {
 	return string(output)
 }
 
-func getVariationSequences() (output map[string]struct{}) {
-	variationSequences := exerrors.Must(http.Get("https://www.unicode.org/Public/15.1.0/ucd/emoji/emoji-variation-sequences.txt"))
-	buf := bufio.NewReader(variationSequences.Body)
-	output = make(map[string]struct{})
-	for {
-		line, err := buf.ReadString('\n')
-		if errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			panic(err)
-		}
+func getVariationSequences() (output map[string]bool) {
+	return unicodeurls.ReadDataFileMap(unicodeurls.EmojiVariationSequences, func(line string) (string, bool, bool) {
 		parts := strings.Split(line, "; ")
 		if len(parts) < 2 || parts[1] != "emoji style" {
-			continue
+			return "", false, false
 		}
 		unifiedParts := strings.Split(parts[0], " ")
-		output[unifiedParts[0]] = struct{}{}
-	}
-	return
+		return unifiedParts[0], true, true
+	})
+}
+
+var emojiDescRegex = regexp.MustCompile(`.+E\d+\.\d+ (.+)\n$`)
+
+type OfficialEmoji struct {
+	Unified   string
+	Unicode   string
+	Name      string
+	ShortCode string
+	Group     int
+}
+
+func getOfficialEmojis() []*OfficialEmoji {
+	var currentGroupIndex int
+	return unicodeurls.ReadDataFileList(unicodeurls.EmojiTest, func(line string) (*OfficialEmoji, bool) {
+		if strings.HasPrefix(line, "# group: ") {
+			currentGroupName := strings.TrimSpace(strings.TrimPrefix(line, "# group: "))
+			currentGroupIndex = slices.Index(categories, currentGroupName)
+			if currentGroupIndex == -1 {
+				panic(fmt.Errorf("unknown group %q", currentGroupName))
+			}
+			return nil, false
+		}
+		parts := strings.Split(line, "; ")
+		if len(parts) < 2 || !strings.HasPrefix(parts[1], "fully-qualified") || strings.Contains(parts[1], "skin tone") {
+			return nil, false
+		}
+		match := emojiDescRegex.FindStringSubmatch(parts[1])
+		if match == nil {
+			return nil, false
+		}
+
+		unified := strings.ReplaceAll(strings.TrimSpace(parts[0]), " ", "-")
+		return &OfficialEmoji{
+			Unified:   unified,
+			Unicode:   unifiedToUnicode(unified),
+			Name:      strings.TrimSpace(titler.String(match[1])),
+			ShortCode: strings.ReplaceAll(strings.TrimSpace(match[1]), " ", "_"),
+			Group:     currentGroupIndex,
+		}, true
+	}, unicodeurls.ReadParams{ProcessComments: true})
 }
 
 type outputEmoji struct {
@@ -169,6 +200,32 @@ func regionalIndicators(yield func(Emoji) bool) {
 	}
 }
 
+var categories = []string{
+	"Activities",
+	"Animals & Nature",
+	"Component",
+	"Flags",
+	"Food & Drink",
+	"Objects",
+	"People & Body",
+	"Smileys & Emotion",
+	"Symbols",
+	"Travel & Places",
+}
+
+var categoryOrder = []string{
+	"Smileys & Emotion",
+	"People & Body",
+	"Component",
+	"Animals & Nature",
+	"Food & Drink",
+	"Travel & Places",
+	"Activities",
+	"Objects",
+	"Symbols",
+	"Flags",
+}
+
 func main() {
 	var emojis []Emoji
 	resp := exerrors.Must(http.Get("https://raw.githubusercontent.com/iamcal/emoji-data/master/emoji.json"))
@@ -185,7 +242,7 @@ func main() {
 
 	data := &outputData{
 		Emojis:     make([]*outputEmoji, len(emojis)),
-		Categories: []string{"Activities", "Animals & Nature", "Component", "Flags", "Food & Drink", "Objects", "People & Body", "Smileys & Emotion", "Symbols", "Travel & Places"},
+		Categories: categories,
 	}
 	existingShortcodes := make(map[string]struct{})
 	emojiMap := make(map[string]*outputEmoji)
@@ -209,10 +266,33 @@ func main() {
 		if wrapped.Title == "" {
 			wrapped.Title = titler.String(emoji.Name)
 		}
-		if _, needsVariation := vs[emoji.Unified]; needsVariation {
+		if vs[emoji.Unified] {
 			wrapped.Unicode += "\ufe0f"
 		}
 		data.Emojis[i] = wrapped
+	}
+	addedUnicode := false
+	for _, emoji := range getOfficialEmojis() {
+		_, ok := emojiMap[emoji.Unified]
+		if ok {
+			continue
+		}
+		addedUnicode = true
+		fmt.Println("Adding", emoji.Unicode, emoji.Unified, "from upstream list")
+		wrapped := &outputEmoji{
+			Unicode:    emoji.Unicode,
+			Category:   emoji.Group,
+			Title:      emoji.Name,
+			Name:       emoji.ShortCode,
+			Shortcodes: []string{strings.ReplaceAll(emoji.ShortCode, "_", "")},
+		}
+		emojiMap[emoji.Unified] = wrapped
+		data.Emojis = append(data.Emojis, wrapped)
+	}
+	if addedUnicode {
+		slices.SortStableFunc(data.Emojis, func(a, b *outputEmoji) int {
+			return cmp.Compare(slices.Index(categoryOrder, categories[a.Category]), slices.Index(categoryOrder, categories[b.Category]))
+		})
 	}
 	var moreShortcodes map[string]stringOrArray
 	resp = exerrors.Must(http.Get("https://raw.githubusercontent.com/milesj/emojibase/refs/heads/master/packages/data/en/shortcodes/emojibase.raw.json"))
