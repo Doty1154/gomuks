@@ -96,6 +96,7 @@ export interface ComposerState {
 	loadingPreviews: string[]
 	possiblePreviews: string[]
 	replyTo: EventID | null
+	mentionRoom: boolean
 	silentReply: boolean
 	explicitReplyInThread: boolean
 	startNewThread: boolean
@@ -113,6 +114,7 @@ const emptyComposer: ComposerState = {
 	loadingPreviews: [],
 	possiblePreviews: [],
 	replyTo: null,
+	mentionRoom: true,
 	silentReply: false,
 	explicitReplyInThread: false,
 	startNewThread: false,
@@ -140,7 +142,9 @@ const draftStore = {
 			return null
 		}
 		try {
-			return JSON.parse(data)
+			const parsed = JSON.parse(data)
+			parsed.loadingPreviews = []
+			return parsed
 		} catch {
 			return null
 		}
@@ -260,7 +264,7 @@ const MessageComposer = () => {
 		setAutocomplete(null)
 		const mentions: Mentions = {
 			user_ids: [],
-			room: false,
+			room: state.text.includes("@room") && state.mentionRoom,
 		}
 		let relates_to: RelatesTo | undefined = undefined
 		if (roomCtx.threadRoot) {
@@ -708,6 +712,9 @@ const MessageComposer = () => {
 		}
 	}, [roomCtx, room, state, editing])
 	useEffect(() => {
+		if (state.uninited) {
+			return
+		}
 		if (!room.preferences.send_bundled_url_previews) {
 			setState({ previews: [], loadingPreviews: [], possiblePreviews: []})
 			return
@@ -721,7 +728,7 @@ const MessageComposer = () => {
 			loadingPreviews: s.loadingPreviews.filter(u => urls.includes(u)),
 			possiblePreviews: urls,
 		}))
-	}, [room.preferences, state.text])
+	}, [room.preferences, state.uninited, state.text])
 	const clearMedia = useCallback(() => setState({ media: null, location: null }), [])
 	const onChangeLocation = useCallback((location: ComposerLocationValue) => setState({ location }), [])
 	const closeReply = useCallback((evt: React.MouseEvent) => {
@@ -946,7 +953,15 @@ const MessageComposer = () => {
 				room={room} client={client}
 				location={state.location} onChange={onChangeLocation} clearLocation={clearMedia}
 			/>}
-			{state.previews.length || state.loadingPreviews || possiblePreviewsNotLoadingOrPreviewed
+			{state.text.includes("@room") && <label className="mention-confirmations">
+				<input
+					type="checkbox"
+					checked={state.mentionRoom}
+					onChange={evt => setState({ mentionRoom: evt.currentTarget.checked })}
+				/>
+				Mention @room
+			</label>}
+			{state.previews.length || state.loadingPreviews.length || possiblePreviewsNotLoadingOrPreviewed
 				? <div className="url-previews">
 					{state.previews.map((preview, i) => <URLPreview
 						key={i}
