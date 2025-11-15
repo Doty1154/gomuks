@@ -176,16 +176,20 @@ export class StateStore {
 		return fn ? this.roomList.current.filter(fn) : this.roomList.current
 	}
 
-	#shouldHideRoom(entry: SyncRoom): boolean {
+	#showTypeInRoomList(entry: SyncRoom): boolean {
 		const cc = entry.meta.creation_content
 		switch (cc?.type ?? "") {
 		default:
 			// The room is not a normal room
-			return true
+			return false
 		case "":
 		case "support.feline.policy.lists.msc.v1":
 		case "org.matrix.msc3417.call":
+			return true
 		}
+	}
+
+	#isTombstoned(entry: SyncRoom): boolean {
 		const replacementRoom = entry.meta.tombstone?.replacement_room
 		if (
 			replacementRoom
@@ -215,14 +219,15 @@ export class StateStore {
 		if (!room) {
 			room = this.rooms.get(entry.meta.room_id)
 		}
-		if (this.#shouldHideRoom(entry)) {
-			if (room) {
-				room.hidden = true
-			}
-			return null
+		const isTombstoned = this.#isTombstoned(entry)
+		const showInRoomList = this.#showTypeInRoomList(entry)
+		const hidden = isTombstoned || !showInRoomList
+		if (room) {
+			room.tombstoned = isTombstoned
+			room.hidden = hidden
 		}
-		if (room?.hidden) {
-			room.hidden = false
+		if (hidden) {
+			return null
 		}
 		const preview_event = room?.eventsByRowID.get(entry.meta.preview_event_rowid)
 		const preview_sender = preview_event && room?.getStateEvent("m.room.member", preview_event.sender)
@@ -315,11 +320,13 @@ export class StateStore {
 			if (!resyncRoomList) {
 				// When we join a valid replacement room, hide the tombstoned room.
 				const predecessorID = data.meta.creation_content?.predecessor?.room_id
-				if (
-					isNewRoom
-					&& typeof predecessorID === "string"
-					&& this.rooms.get(predecessorID)?.meta.current.tombstone?.replacement_room === roomID) {
-					changedRoomListEntries.set(predecessorID, null)
+				if (isNewRoom && typeof predecessorID === "string") {
+					const predecessorRoom = this.rooms.get(predecessorID)
+					if (predecessorRoom?.meta.current.tombstone?.replacement_room === roomID) {
+						changedRoomListEntries.set(predecessorID, null)
+						predecessorRoom.tombstoned = true
+						predecessorRoom.hidden = true
+					}
 				}
 			}
 
