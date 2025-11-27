@@ -48,6 +48,7 @@ import (
 	"github.com/rs/zerolog/hlog"
 	"go.mau.fi/util/exhttp"
 	"go.mau.fi/util/ffmpeg"
+	"go.mau.fi/util/ffmpeg/waveform"
 	"go.mau.fi/util/jsontime"
 	"go.mau.fi/util/ptr"
 	"go.mau.fi/util/random"
@@ -628,6 +629,35 @@ func (gmx *Gomuks) reencodeMedia(ctx context.Context, query url.Values, tempFile
 		if err != nil {
 			return nil, fmt.Errorf("failed to reopen converted video: %w", err)
 		}
+	case "audio/ogg; codecs=opus", "audio/mp4", "audio/mpeg":
+		_ = tempFile.Close()
+		var encToExtension, encToCodec string
+		switch encTo {
+		case "audio/ogg; codecs=opus":
+			encToExtension = ".ogg"
+			encToCodec = "libopus"
+		case "audio/mp4":
+			encToExtension = ".m4a"
+			encToCodec = "aac"
+		case "audio/mpeg":
+			encToExtension = ".mp3"
+			encToCodec = "libmp3lame"
+		default:
+			panic("unreachable")
+		}
+		// TODO allow customizing bitrate?
+		outputPath, err := ffmpeg.ConvertPath(ctx, tempFile.Name(), encToExtension, nil, []string{"-c:a", encToCodec}, true)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert audio: %w", err)
+		}
+		err = os.Rename(outputPath, tempFile.Name())
+		if err != nil {
+			return nil, fmt.Errorf("failed to rename converted audio: %w", err)
+		}
+		tempFile, err = os.OpenFile(tempFile.Name(), os.O_RDONLY, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to reopen converted audio: %w", err)
+		}
 	default:
 		return nil, fmt.Errorf("unsupported encoding target %q", encTo)
 	}
@@ -825,6 +855,21 @@ func (gmx *Gomuks) cacheAndUploadMedia(
 		Body:     fileName,
 		Info:     info,
 		FileName: fileName,
+	}
+	if query.Get("voice_message") == "true" {
+		samples := 80
+		if info.Duration != 0 {
+			samples = min(max(info.Duration/125, 30), 120)
+		}
+		wf, err := waveform.Generate(ctx, cachePath, samples, 256)
+		if err != nil {
+			log.Warn().Err(err).Msg("Failed to generate waveform")
+		}
+		content.MSC1767Audio = &event.MSC1767Audio{
+			Duration: info.Duration,
+			Waveform: wf,
+		}
+		content.MSC3245Voice = &event.MSC3245Voice{}
 	}
 	content.File, content.URL, err = gmx.UploadFile(
 		ctx, checksum, cacheFile, encrypt, int64(info.Size), info.MimeType, fileName, progressCallback,
