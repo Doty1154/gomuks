@@ -13,8 +13,10 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
-import { JSX, useEffect, useState } from "react"
-import { RoomStateStore } from "@/api/statestore"
+import { JSX, Suspense, lazy, useEffect, useState } from "react"
+import { GridLoader } from "react-spinners"
+import { RoomStateStore, usePreference } from "@/api/statestore"
+import { RoomType } from "@/api/types"
 import MessageComposer from "../composer/MessageComposer.tsx"
 import TypingNotifications from "../composer/TypingNotifications.tsx"
 import RightPanel, { RightPanelProps } from "../rightpanel/RightPanel.tsx"
@@ -33,7 +35,9 @@ interface RoomViewProps {
 	rightPanelResizeHandle: JSX.Element
 }
 
-function getViewForRoomType(roomType: string | undefined): JSX.Element | null {
+const ImagePackView = lazy(() => import("./ImagePackView.tsx"))
+
+function getViewForRoomType(roomType: RoomType | undefined): JSX.Element | null {
 	switch (roomType) {
 	case "m.space":
 		return <SpaceView />
@@ -41,14 +45,21 @@ function getViewForRoomType(roomType: string | undefined): JSX.Element | null {
 		return null // TODO <PolicyListEditor />
 	case "org.matrix.msc3417.call":
 		return <ElementCall />
+	case "fi.mau.msc2545.image_pack":
+		return <Suspense fallback={<div style={{ display: "flex", justifyContent: "center", marginTop: "2rem" }}>
+			<GridLoader color="var(--primary-color)" size={20} />
+		</div>}>
+			<ImagePackView />
+		</Suspense>
 	default:
 		return null
 	}
 }
 
 const RoomView = ({ room, rightPanelResizeHandle, rightPanel }: RoomViewProps) => {
-	const [forceDefaultTimeline, setForceDefaultTimeline] = useState(false)
-	const [roomContextData] = useState(() => new RoomContextData(room, setForceDefaultTimeline))
+	const [forceViewType, setForceViewType] = useState<RoomType | null>(null)
+	const settingsViewType = usePreference(null, room, "room_view_type")
+	const [roomContextData] = useState(() => new RoomContextData(room, setForceViewType))
 	useEffect(() => {
 		if (room.hackyPendingJumpToEventID) {
 			jumpToEvent(roomContextData, room.hackyPendingJumpToEventID)
@@ -73,14 +84,12 @@ const RoomView = ({ room, rightPanelResizeHandle, rightPanel }: RoomViewProps) =
 			evt.stopPropagation()
 		}
 	}
-	let view = <>
+	const viewType = forceViewType ?? settingsViewType ?? room.meta.current.creation_content?.type
+	const view = getViewForRoomType(viewType) ?? <>
 		<TimelineView/>
 		<MessageComposer/>
 		<TypingNotifications/>
 	</>
-	if (!forceDefaultTimeline) {
-		view = getViewForRoomType(room.meta.current.creation_content?.type) ?? view
-	}
 	return <RoomContext value={roomContextData}>
 		<div className="room-view" onClick={onClick}>
 			<ErrorBoundary thing="room header" wrapperClassName="room-header-error">

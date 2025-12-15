@@ -223,8 +223,8 @@ export class RoomStateStore {
 
 	getEmojiPack(key: string): CustomEmojiPack | null {
 		if (!this.#emojiPacksCache.has(key)) {
-			const pack = this.getStateEvent("im.ponies.room_emotes", key)?.content
-			if (!pack || !pack.images) {
+			const packEvt = this.getStateEvent("im.ponies.room_emotes", key)
+			if (!packEvt || packEvt?.redacted_by || !packEvt?.content?.images) {
 				this.#emojiPacksCache.set(key, null)
 				return null
 			}
@@ -235,7 +235,7 @@ export class RoomStateStore {
 				type: "im.ponies.room_emotes",
 				state_key: key,
 			})
-			this.#emojiPacksCache.set(key, parseCustomEmojiPack(pack as ImagePack, packID, fallbackName))
+			this.#emojiPacksCache.set(key, parseCustomEmojiPack(packEvt.content as ImagePack, packID, fallbackName))
 		}
 		return this.#emojiPacksCache.get(key) ?? null
 	}
@@ -257,8 +257,19 @@ export class RoomStateStore {
 	getAllBotCommands(): WrappedBotCommand[] {
 		if (this.#allCommandsCache === null) {
 			const roomCommands = this.state.get("org.matrix.msc4332.commands")?.entries()
-				.flatMap(([stateKey, rowID]) =>
-					mapCommandContent(stateKey, this.eventsByRowID.get(rowID)?.content))
+				.flatMap(([stateKey, rowID]) => {
+					if (this.fullMembersLoaded) {
+						const ownerMember = this.getStateEvent("m.room.member", stateKey)?.content
+						if (ownerMember?.membership !== "join") {
+							return []
+						}
+					}
+					const evt = this.eventsByRowID.get(rowID)
+					if (!evt || evt.redacted_by) {
+						return []
+					}
+					return mapCommandContent(stateKey, evt.content)
+				})
 				.toArray() ?? []
 			this.#allCommandsCache = roomCommands.concat(mapCommandContent(fakeGomuksSender, StandardCommands))
 		}
@@ -506,6 +517,7 @@ export class RoomStateStore {
 			this.parent.invalidateEmojiPacksCache()
 		} else if (evtType === "m.room.member") {
 			this.#membersCache = null
+			this.#allCommandsCache = null
 			this.requestedMembers.delete(key as UserID)
 		} else if (evtType === "m.room.power_levels") {
 			this.#membersCache = null

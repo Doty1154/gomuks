@@ -13,12 +13,14 @@ export type CommandName =
 	| "myroomavatar"
 	| "globalnick {name}"
 	| "globalavatar"
-	| "roomname"
+	| "roomname {name}"
 	| "roomavatar"
 	| "redact {event_id} {reason}"
 	| "raw {event_type} {json}"
 	| "unencryptedraw {event_type} {json}"
 	| "rawstate {event_type} {state_key} {json}"
 	| "discardsession"
+	| "alias add {name}"
+	| "alias del {name}"
 
 export default BotCommandsEventContent
