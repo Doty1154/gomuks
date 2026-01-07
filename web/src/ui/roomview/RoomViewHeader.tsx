@@ -19,13 +19,12 @@ import { RoomStateStore } from "@/api/statestore"
 import { getModalStyleFromButton } from "@/ui/menu/util.ts"
 import { useEventAsState } from "@/util/eventdispatcher.ts"
 import MainScreenContext from "../MainScreenContext.ts"
-import { LightboxContext, NestableModalContext } from "../modal"
-import RoomStateExplorer from "../settings/RoomStateExplorer.tsx"
-import SettingsView from "../settings/SettingsView.tsx"
+import { LightboxContext, NestableModalContext, modals } from "../modal"
 import BackIcon from "@/icons/back.svg?react"
 import CodeIcon from "@/icons/code.svg?react"
 import PeopleIcon from "@/icons/group.svg?react"
 import MoreIcon from "@/icons/more.svg?react"
+import NotificationsIcon from "@/icons/notifications.svg?react"
 import PinIcon from "@/icons/pin.svg?react"
 import SettingsIcon from "@/icons/settings.svg?react"
 import WidgetIcon from "@/icons/widgets.svg?react"
@@ -40,20 +39,10 @@ const RoomViewHeader = ({ room }: RoomViewHeaderProps) => {
 	const mainScreen = use(MainScreenContext)
 	const openNestableModal = use(NestableModalContext)
 	const openSettings = () => {
-		openNestableModal({
-			dimmed: true,
-			boxed: true,
-			innerBoxClass: "settings-view",
-			content: <SettingsView room={room} />,
-		})
+		openNestableModal(modals.settings(room))
 	}
 	const openRoomStateExplorer = () => {
-		openNestableModal({
-			dimmed: true,
-			boxed: true,
-			innerBoxClass: "room-state-explorer-box",
-			content: <RoomStateExplorer room={room} />,
-		})
+		openNestableModal(modals.roomStateExplorer(room))
 	}
 	const buttonCount = 5
 	const makeButtons = (titles?: boolean)  => {
@@ -76,6 +65,12 @@ const RoomViewHeader = ({ room }: RoomViewHeaderProps) => {
 				onClick={mainScreen.clickRightPanelOpener}
 				title="Widgets in room"
 			><WidgetIcon/>{titles && "Widgets in room"}</button>
+			<button
+				data-target-panel="notifications"
+				data-close-nestable-modal={titles}
+				onClick={mainScreen.clickRightPanelOpener}
+				title="Notification Center"
+			><NotificationsIcon />{titles && "Notification Center"}</button>
 			<button title="Explore room state" onClick={openRoomStateExplorer}>
 				<CodeIcon/>{titles && "Explore room state"}
 			</button>

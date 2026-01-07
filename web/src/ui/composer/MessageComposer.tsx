@@ -53,7 +53,7 @@ import EmojiPicker from "../emojipicker/EmojiPicker.tsx"
 import GIFPicker from "../emojipicker/GIFPicker.tsx"
 import StickerPicker from "../emojipicker/StickerPicker.tsx"
 import { keyToString } from "../keybindings.ts"
-import { ModalContext } from "../modal"
+import { ModalContext, modals } from "../modal"
 import { useRoomContext } from "../roomview/roomcontext.ts"
 import { ReplyBody } from "../timeline/ReplyBody.tsx"
 import URLPreview from "../urlpreview/URLPreview.tsx"
@@ -61,8 +61,6 @@ import ErrorBoundary from "../util/ErrorBoundary.tsx"
 import type { AutocompleteQuery } from "./Autocompleter.tsx"
 import CommandInput from "./CommandInput.tsx"
 import { ComposerLocation, ComposerLocationValue, ComposerMedia } from "./ComposerMedia.tsx"
-import MediaUploadDialog from "./MediaUploadDialog.tsx"
-import VoiceRecorder from "./VoiceRecorder.tsx"
 import {
 	canAutocompleteCommand,
 	charToAutocompleteType,
@@ -474,6 +472,34 @@ const MessageComposer = () => {
 		} else if (editing && fullKey === "Escape") {
 			evt.stopPropagation()
 			roomCtx.setEditing(null)
+		} else if (!editing && fullKey === "Ctrl+ArrowUp" && room.preferences.ctrl_arrow_reply) {
+			let replyToIdx = replyToEvt ? room.timeline.findIndex(item => item.event_rowid === replyToEvt.rowid) : -1
+			if (replyToIdx === -1) {
+				replyToIdx = room.timeline.length - 1
+			} else if (replyToIdx > 0) {
+				replyToIdx -= 1
+			} else {
+				return
+			}
+			const newReplyEvt = room.eventsByRowID.get(room.timeline[replyToIdx].event_rowid)
+			if (newReplyEvt) {
+				roomCtx.setReplyTo(newReplyEvt.event_id)
+				evt.preventDefault()
+			}
+		} else if (
+			!editing && fullKey === "Ctrl+ArrowDown" && replyToEvt !== null && room.preferences.ctrl_arrow_reply
+		) {
+			const replyToIdx = room.timeline.findIndex(item => item.event_rowid === replyToEvt.rowid)
+			if (replyToIdx >= room.timeline.length - 1) {
+				roomCtx.setReplyTo(null)
+				evt.preventDefault()
+			} else if (replyToIdx >= 0) {
+				const newReplyEvt = room.eventsByRowID.get(room.timeline[replyToIdx + 1].event_rowid)
+				if (newReplyEvt) {
+					roomCtx.setReplyTo(newReplyEvt.event_id)
+					evt.preventDefault()
+				}
+			}
 		}
 	}
 	const onChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -589,20 +615,7 @@ const MessageComposer = () => {
 			return
 		}
 		if (room.preferences.upload_dialog || (state.text.startsWith("/") && !isLegacyCommand(state.text))) {
-			const objectURL = URL.createObjectURL(file)
-			openModal({
-				dimmed: true,
-				boxed: true,
-				innerBoxClass: "media-upload-modal-wrapper",
-				onClose: () => URL.revokeObjectURL(objectURL),
-				content: <MediaUploadDialog
-					file={file}
-					blobURL={objectURL}
-					doUploadFile={doUploadFile}
-					isEncrypted={isEncrypted}
-					isVoice={isVoice}
-				/>,
-			})
+			openModal(modals.mediaUpload(file, doUploadFile, isEncrypted, isVoice))
 		} else {
 			window.closeModal()
 			const encTo = isVoice && file.type !== "audio/ogg; codecs=opus" ? "audio/ogg; codecs=opus" : undefined
@@ -761,9 +774,7 @@ const MessageComposer = () => {
 		mediaDisabledTitle = "Uploading file..."
 		locationDisabledTitle = "You can't attach a location to a message with a file"
 	}
-	if (!isEncrypted && getUserLevel(pls, createEvent, client.userID) < getEventLevel(pls, "m.sticker")) {
-		stickerDisabledTitle = "You don't have permission to send stickers in this room"
-	} else if (state.media?.msgtype !== "m.sticker") {
+	if (state.media?.msgtype !== "m.sticker") {
 		stickerDisabledTitle = mediaDisabledTitle
 		if (!stickerDisabledTitle && editing) {
 			stickerDisabledTitle = "You can't edit a message into a sticker"
@@ -820,14 +831,7 @@ const MessageComposer = () => {
 			})
 		}
 		const openVoiceRecorder = () => {
-			openModal({
-				dimmed: true,
-				boxed: true,
-				boxClass: "voice-recorder-box",
-				innerBoxClass: "voice-recorder",
-				content: <VoiceRecorder onFinish={openFileUploadModal} />,
-				onClose: () => !isMobileDevice && textInput.current?.focus(),
-			})
+			openModal(modals.voiceRecorder(openFileUploadModal, textInput))
 		}
 		const openLocationPicker = () => {
 			setState({ location: { lat: 0, long: 0, prec: 1 }, media: null })
