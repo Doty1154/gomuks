@@ -18,6 +18,7 @@ package gomuks
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -789,9 +790,13 @@ func (gmx *Gomuks) GetURLPreview(w http.ResponseWriter, r *http.Request) {
 			} else {
 				gmx.temporaryMXCToPermanent[preview.ImageURL] = content.URL
 			}
+			if content.Info != nil {
+				gmx.temporaryMXCToBlurhash[preview.ImageURL] = cmp.Or(content.Info.Blurhash, content.Info.AnoaBlurhash)
+			}
 		}
 
 		if content != nil {
+			preview.ImageBlurhash = gmx.temporaryMXCToBlurhash[preview.ImageURL]
 			preview.ImageURL = content.URL
 			preview.ImageEncryption = content.File
 		}
