@@ -426,7 +426,7 @@ func removeReplyFallback(evt *event.Event) []byte {
 func (h *HiClient) decryptEvent(ctx context.Context, evt *event.Event) (*event.Event, []byte, bool, string, error) {
 	err := evt.Content.ParseRaw(evt.Type)
 	if err != nil && !errors.Is(err, event.ErrContentAlreadyParsed) {
-		return nil, nil, false, "", err
+		return nil, nil, false, "", fmt.Errorf("failed to parse content: %w", err)
 	}
 	decrypted, err := h.Crypto.DecryptMegolmEvent(ctx, evt)
 	if err != nil {
@@ -622,9 +622,10 @@ func (h *HiClient) calculateLocalContent(ctx context.Context, dbEvt *database.Ev
 			HasMath:              hasMath,
 			EditSource:           editSource,
 			ReplyFallbackRemoved: dbEvt.LocalContent.GetReplyFallbackRemoved(),
+			PushRuleID:           dbEvt.LocalContent.GetPushRuleID(),
 		}, inlineImages
 	}
-	return nil, nil
+	return dbEvt.LocalContent, nil
 }
 
 const CurrentHTMLSanitizerVersion = 12
@@ -648,7 +649,14 @@ func (h *HiClient) postDecryptProcess(ctx context.Context, llSummary *mautrix.La
 		h.cacheMedia(ctx, evt, dbEvt.RowID)
 	}
 	if evt.Sender != h.Account.UserID && !evt.Unsigned.ElementSoftFailed {
-		dbEvt.UnreadType = h.evaluatePushRules(ctx, llSummary, dbEvt.GetNonPushUnreadType(), evt)
+		var pushRuleID string
+		dbEvt.UnreadType, pushRuleID = h.evaluatePushRules(ctx, llSummary, dbEvt.GetNonPushUnreadType(), evt)
+		if pushRuleID != "" {
+			if dbEvt.LocalContent == nil {
+				dbEvt.LocalContent = &database.LocalContent{}
+			}
+			dbEvt.LocalContent.PushRuleID = pushRuleID
+		}
 	}
 	dbEvt.LocalContent, inlineImages = h.calculateLocalContent(ctx, dbEvt, evt)
 	return
@@ -733,11 +741,11 @@ func (h *HiClient) processEvent(
 				Sender:    evt.Sender,
 			}
 		}
-		minIndex, _ := crypto.ParseMegolmMessageIndex(evt.Content.AsEncrypted().MegolmCiphertext)
+		minIndex, err := crypto.ParseMegolmMessageIndex(evt.Content.AsEncrypted().MegolmCiphertext)
 		req.MinIndex = min(uint32(minIndex), req.MinIndex)
-		if decryptionQueue != nil {
+		if decryptionQueue != nil && err == nil {
 			decryptionQueue[dbEvt.MegolmSessionID] = req
-		} else {
+		} else if err == nil {
 			err = h.DB.SessionRequest.Put(ctx, req)
 			if err != nil {
 				zerolog.Ctx(ctx).Err(err).
@@ -1015,15 +1023,16 @@ func (h *HiClient) processStateAndTimeline(
 			}
 		}
 	}
-	// Calculate name from participants if participants changed and current name was generated from participants, or if the room name was unset
-	if (heroesChanged && updatedRoom.NameQuality <= database.NameQualityParticipants) || updatedRoom.NameQuality == database.NameQualityNil {
-		name, dmAvatarURL, dmUserID, err := h.calculateRoomParticipantName(ctx, room.ID, summary)
+	if heroesChanged || updatedRoom.NameQuality == database.NameQualityNil {
+		dmRoomName, dmAvatarURL, dmUserID, err := h.calculateRoomParticipantName(ctx, room.ID, summary, updatedRoom.NameQuality)
 		if err != nil {
 			return fmt.Errorf("failed to calculate room name: %w", err)
 		}
 		updatedRoom.DMUserID = &dmUserID
-		updatedRoom.Name = &name
-		updatedRoom.NameQuality = database.NameQualityParticipants
+		if updatedRoom.NameQuality <= database.NameQualityParticipants {
+			updatedRoom.Name = &dmRoomName
+			updatedRoom.NameQuality = database.NameQualityParticipants
+		}
 		if !dmAvatarURL.IsEmpty() && !room.ExplicitAvatar {
 			updatedRoom.Avatar = &dmAvatarURL
 		}
@@ -1093,10 +1102,18 @@ func joinMemberNames(names []string, totalCount int) string {
 	}
 }
 
-func (h *HiClient) calculateRoomParticipantName(ctx context.Context, roomID id.RoomID, summary *mautrix.LazyLoadSummary) (string, id.ContentURI, id.UserID, error) {
+func (h *HiClient) calculateRoomParticipantName(
+	ctx context.Context,
+	roomID id.RoomID,
+	summary *mautrix.LazyLoadSummary,
+	currentNameQuality database.NameQuality,
+) (string, id.ContentURI, id.UserID, error) {
 	var primaryAvatarURL id.ContentURI
 	if summary == nil || len(summary.Heroes) == 0 {
 		return "Empty room", primaryAvatarURL, "", nil
+	} else if currentNameQuality > database.NameQualityParticipants && summary.MemberCount() > 10 {
+		// Short-circuit for large rooms
+		return "", primaryAvatarURL, "", nil
 	}
 	var functionalMembers []id.UserID
 	functionalMembersEvt, err := h.DB.CurrentState.Get(ctx, roomID, event.StateElementFunctionalMembers, "")
