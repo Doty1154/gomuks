@@ -13,21 +13,32 @@ package main
 static inline void _gomuks_callEventCallback(EventCallback cb, const char *command, int64_t request_id, GomuksOwnedBuffer data) {
 	cb(command, request_id, data);
 }
+
+static inline void _gomuks_callProgressCallback(ProgressCallback cb, double progress) {
+	cb(progress);
+}
 */
 import "C"
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"runtime"
 	"runtime/cgo"
 	"unsafe"
 
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/dbutil"
+	"go.mau.fi/util/exbytes"
 	"go.mau.fi/util/exerrors"
 	"go.mau.fi/util/ptr"
 	"go.mau.fi/zeroconfig"
+	"maunium.net/go/mautrix/crypto"
+	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/gomuks/pkg/gomuks"
 	"go.mau.fi/gomuks/pkg/hicli"
@@ -185,39 +196,101 @@ func GomuksSubmitCommand(handle C.GomuksHandle, command *C.char, data C.GomuksBo
 	if gmx.Client == nil {
 		panic(fmt.Errorf("GomuksSubmitCommand called before GomuksStart"))
 	}
-	res := gmx.Client.SubmitJSONCommand(gmx.ctx, &hicli.JSONCommand{
-		Command: jsoncmd.Name(C.GoString(command)),
-		Data:    borrowBufferBytes(data),
-	})
+	var res *jsoncmd.Container[json.RawMessage]
+	cmd := jsoncmd.Name(C.GoString(command))
+	reqData := borrowBufferBytes(data)
+	switch cmd {
+	case jsoncmd.ReqGetAccountInfo, jsoncmd.ReqUploadMedia, jsoncmd.ReqExportKeys:
+		res = gmx.handleFFICommand(cmd, reqData)
+	default:
+		res = gmx.Client.SubmitJSONCommand(gmx.ctx, &hicli.JSONCommand{
+			Command: jsoncmd.Name(C.GoString(command)),
+			Data:    reqData,
+		})
+	}
 	return C.GomuksResponse{
 		buf:     bytesToOwnedBuffer(res.Data),
 		command: commandNames[res.Command],
 	}
 }
 
-//export GomuksGetAccountInfo
-func GomuksGetAccountInfo(handle C.GomuksHandle) C.GomuksAccountInfo {
+//export GomuksUploadMediaBytes
+func GomuksUploadMediaBytes(handle C.GomuksHandle, params C.GomuksBorrowedBuffer, mediaBytes C.GomuksBorrowedBuffer, cb C.ProgressCallback) C.GomuksResponse {
+	return gomuksUploadMediaAny(handle, params, borrowBufferBytes(mediaBytes), cb)
+}
+
+//export GomuksUploadMediaPath
+func GomuksUploadMediaPath(handle C.GomuksHandle, params C.GomuksBorrowedBuffer, cb C.ProgressCallback) C.GomuksResponse {
+	return gomuksUploadMediaAny(handle, params, nil, cb)
+}
+
+func gomuksUploadMediaAny(handle C.GomuksHandle, params C.GomuksBorrowedBuffer, direct []byte, cb C.ProgressCallback) C.GomuksResponse {
 	gmx := cgo.Handle(handle).Value().(*gomuksHandle)
-	if gmx.Client == nil || gmx.Client.Account == nil {
-		return C.GomuksAccountInfo{}
+	if gmx.Client == nil {
+		panic(fmt.Errorf("GomuksSubmitCommand called before GomuksStart"))
 	}
-	return C.GomuksAccountInfo{
-		user_id:        C.CString(string(gmx.Client.Account.UserID)),
-		device_id:      C.CString(string(gmx.Client.Account.DeviceID)),
-		access_token:   C.CString(gmx.Client.Account.AccessToken),
-		homeserver_url: C.CString(gmx.Client.Account.HomeserverURL),
+	reqData := borrowBufferBytes(params)
+	return containerToResponse(wrapFFIResponse(jsoncmd.SpecUploadMedia.Run(reqData, func(params *jsoncmd.UploadMediaParams) (*event.MessageEventContent, error) {
+		var reader io.Reader
+		if direct != nil {
+			reader = bytes.NewReader(direct)
+		}
+		if params.Path != "" && params.Filename == "" {
+			params.Filename = filepath.Base(params.Path)
+		}
+		return gmx.CacheAndUploadMedia(gmx.ctx, reader, *params, func(progress float64) {
+			C._gomuks_callProgressCallback(cb, C.double(progress))
+		})
+	})))
+}
+
+func (gmx *gomuksHandle) handleFFICommand(cmd jsoncmd.Name, reqData []byte) *jsoncmd.Container[json.RawMessage] {
+	switch cmd {
+	case jsoncmd.ReqGetAccountInfo:
+		return wrapFFIResponse(gmx.Client.Account, nil)
+	case jsoncmd.ReqUploadMedia:
+		return wrapFFIResponse(jsoncmd.SpecUploadMedia.Run(reqData, func(params *jsoncmd.UploadMediaParams) (*event.MessageEventContent, error) {
+			return gmx.CacheAndUploadMedia(gmx.ctx, nil, *params, nil)
+		}))
+	case jsoncmd.ReqExportKeys:
+		return wrapFFIResponse(jsoncmd.SpecExportKeys.Run(reqData, func(params *jsoncmd.ExportKeysParams) (string, error) {
+			var sessions dbutil.RowIter[*crypto.InboundGroupSession]
+			if params.RoomID == "" {
+				sessions = gmx.Client.CryptoStore.GetAllGroupSessions(gmx.ctx)
+			} else {
+				sessions = gmx.Client.CryptoStore.GetGroupSessionsForRoom(gmx.ctx, params.RoomID)
+			}
+			export, err := crypto.ExportKeysIter(params.Passphrase, sessions)
+			if errors.Is(err, crypto.ErrNoSessionsForExport) {
+				return "", nil
+			} else if err != nil {
+				return "", err
+			}
+			return exbytes.UnsafeString(export), nil
+		}))
+	default:
+		panic(fmt.Errorf("invalid call to handleFFICommand(%s)", cmd))
 	}
 }
 
-//export GomuksFreeAccountInfo
-func GomuksFreeAccountInfo(info C.GomuksAccountInfo) {
-	if info.user_id == nil {
-		return
+func wrapFFIResponse(res any, err error) *jsoncmd.Container[json.RawMessage] {
+	if err != nil {
+		return &jsoncmd.Container[json.RawMessage]{
+			Command: jsoncmd.RespError,
+			Data:    exerrors.Must(json.Marshal(err.Error())),
+		}
 	}
-	C.free(unsafe.Pointer(info.user_id))
-	C.free(unsafe.Pointer(info.device_id))
-	C.free(unsafe.Pointer(info.access_token))
-	C.free(unsafe.Pointer(info.homeserver_url))
+	return &jsoncmd.Container[json.RawMessage]{
+		Command: jsoncmd.RespSuccess,
+		Data:    exerrors.Must(json.Marshal(res)),
+	}
+}
+
+func containerToResponse(res *jsoncmd.Container[json.RawMessage]) C.GomuksResponse {
+	return C.GomuksResponse{
+		buf:     bytesToOwnedBuffer(res.Data),
+		command: commandNames[res.Command],
+	}
 }
 
 //export GomuksFreeBuffer

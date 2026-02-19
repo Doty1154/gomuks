@@ -8,6 +8,7 @@ package jsoncmd
 
 import (
 	"maunium.net/go/mautrix"
+	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/gomuks/pkg/hicli/database"
@@ -76,6 +77,10 @@ const (
 	ReqGetTurnServers           Name = "get_turn_servers"
 	ReqGetMediaConfig           Name = "get_media_config"
 	ReqCalculateRoomID          Name = "calculate_room_id"
+
+	ReqGetAccountInfo Name = "get_account_info"
+	ReqUploadMedia    Name = "upload_media"
+	ReqExportKeys     Name = "export_keys"
 
 	RespError   Name = "error"
 	RespSuccess Name = "response"
@@ -235,6 +240,13 @@ var (
 	CalculateRoomID = &CommandSpec[*CalculateRoomIDParams, id.RoomID]{Name: ReqCalculateRoomID}
 )
 
+// FFI-specific command specs
+var (
+	SpecGetAccountInfo = &CommandSpecWithoutRequest[*database.Account]{Name: ReqGetAccountInfo}
+	SpecUploadMedia    = &CommandSpec[*UploadMediaParams, *event.MessageEventContent]{Name: ReqUploadMedia}
+	SpecExportKeys     = &CommandSpec[*ExportKeysParams, string]{Name: ReqExportKeys}
+)
+
 // Backend -> frontend event specs
 var (
 	SpecSyncComplete    = &EventSpec[*SyncComplete]{Name: EventSyncComplete}
@@ -302,6 +314,8 @@ var AllNames = []Name{
 	ReqGetTurnServers,
 	ReqGetMediaConfig,
 	ReqCalculateRoomID,
+	ReqGetAccountInfo,
+	ReqUploadMedia,
 	RespError,
 	RespSuccess,
 	ReqPing,
