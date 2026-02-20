@@ -22,6 +22,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.34
 	github.com/rivo/uniseg v0.4.7
 	github.com/rs/zerolog v1.34.0
+	github.com/strukturag/libheif v1.21.2
 	github.com/tidwall/gjson v1.18.0
 	github.com/tidwall/sjson v1.2.5
 	github.com/yuin/goldmark v1.7.16
@@ -39,7 +40,7 @@ require (
 	gopkg.in/toast.v1 v1.0.0-20180812000517-0a84660828b2
 	gopkg.in/yaml.v3 v3.0.1
 	maunium.net/go/mauflag v1.0.0
-	maunium.net/go/mautrix v0.26.3
+	maunium.net/go/mautrix v0.26.4-0.20260219121020-974f7dc5446f
 	mvdan.cc/xurls/v2 v2.6.0
 )
 
