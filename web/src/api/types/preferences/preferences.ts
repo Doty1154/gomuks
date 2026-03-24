@@ -195,6 +195,14 @@ export const preferences = {
 	// 	allowedContexts: anyContext,
 	// 	defaultValue: false,
 	// }),
+	max_image_width: new Preference<number>({
+		displayName: "Max image width",
+		description: "Maximum width of images in the timeline.",
+		allowedContexts: anyContext,
+		defaultValue: 320,
+		minValue: 80,
+		maxValue: 1920,
+	}),
 	message_context_menu: new Preference<boolean>({
 		displayName: "Right-click menu on messages",
 		description: "Show a context menu when right-clicking on messages.",
@@ -207,11 +215,29 @@ export const preferences = {
 		allowedContexts: anyContext,
 		defaultValue: false,
 	}),
+	refocus_input_after_send: new Preference<boolean>({
+		displayName: "Re-focus composer after send",
+		description: "Should the composer text area be immediately focused again after the send button is clicked?",
+		allowedContexts: anyContext,
+		defaultValue: true,
+	}),
 	ctrl_arrow_reply: new Preference<boolean>({
 		displayName: "Use Ctrl+Arrow to reply",
 		description: "Should Ctrl+Arrow Up/Down change the message you're replying to?",
 		allowedContexts: anyContext,
 		defaultValue: true,
+	}),
+	pin_favorites: new Preference<boolean>({
+		displayName: "Pin favorites to top",
+		description: "Always keep favorited rooms at the top of the room list, ignoring recent activity.",
+		allowedContexts: anyGlobalContext,
+		defaultValue: false,
+	}),
+	alphabetical_order: new Preference<boolean>({
+		displayName: "Alphabetical room list",
+		description: "Sort rooms by name instead of recent activity.",
+		allowedContexts: anyGlobalContext,
+		defaultValue: false,
 	}),
 	custom_notification_sound: new Preference<ContentURI>({
 		displayName: "Custom notification sound",

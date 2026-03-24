@@ -137,15 +137,20 @@ export default abstract class RPCClient {
 
 	async doAuth(signal: AbortSignal): Promise<boolean> {
 		try {
-			const resp = await fetch("_gomuks/auth", {
+			const resp = await fetch(`_gomuks/auth?secure=${window.isSecureContext}`, {
 				method: "POST",
 				signal,
 			})
+			let body = ""
+			try {
+				body = (await resp.text()).trim()
+			} catch {}
+			const authFailPrefix = `Authentication failed: ${resp.status} ${resp.statusText}`
 			if (!resp.ok && !signal.aborted) {
 				this.connect.emit({
 					connected: false,
 					reconnecting: false,
-					error: `Authentication failed: ${resp.statusText}`,
+					error: [authFailPrefix, body].filter(x => !!x).join(" - "),
 				})
 				return false
 			}
@@ -245,7 +250,7 @@ export default abstract class RPCClient {
 		return this.request("get_profile", { user_id })
 	}
 
-	setProfileField(field: string, value: JSONValue): Promise<void> {
+	setProfileField(field: string, value?: JSONValue): Promise<void> {
 		return this.request("set_profile_field", { field, value })
 	}
 
