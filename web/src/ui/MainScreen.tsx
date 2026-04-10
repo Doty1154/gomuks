@@ -119,6 +119,9 @@ class ContextFields implements MainScreenContextFields {
 
 	setSpace = (space: RoomListFilter | null, pushState = true) => {
 		if (space === this.client.store.currentRoomListFilter) {
+			if (space && pushState && !this.client.store.activeRoomID) {
+				this.setActiveRoom(space.id)
+			}
 			return
 		}
 		console.log("Switching to space", space?.id)
@@ -127,7 +130,7 @@ class ContextFields implements MainScreenContextFields {
 		if (pushState) {
 			if (this.client.store.activeRoomID && space) {
 				const entry = this.client.store.roomListEntries.get(this.client.store.activeRoomID)
-				if (entry && !space.include(entry)) {
+				if (!entry || !space.include(entry)) {
 					this.setActiveRoom(null)
 				}
 			}
@@ -171,7 +174,6 @@ class ContextFields implements MainScreenContextFields {
 				room.hackyPendingJumpToEventID = openEventID
 			}
 		}
-		window.activeRoom = room
 		this.directSetActiveRoom(room)
 		this.directSetRightPanel(null)
 		if (!space && this.client.store.currentRoomListFilter) {
@@ -181,7 +183,7 @@ class ContextFields implements MainScreenContextFields {
 			}
 		}
 		if (space && space !== this.client.store.currentRoomListFilter) {
-			console.log("Switching to space", space?.id)
+			console.log("Switching to space for active room", space?.id)
 			this.directSetSpace(space)
 			this.client.store.currentRoomListFilter = space
 		}
@@ -207,7 +209,6 @@ class ContextFields implements MainScreenContextFields {
 	}
 
 	#closeActiveRoom(pushState: boolean) {
-		window.activeRoom = null
 		this.directSetActiveRoom(null)
 		this.directSetRightPanel(null)
 		this.rightPanelStack = []
