@@ -66,7 +66,7 @@ require (
 	github.com/wailsapp/go-webview2 v1.0.23 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/yuin/goldmark v1.8.2 // indirect
-	go.mau.fi/goheif v0.0.0-20251226222328-02af05634b82 // indirect
+	go.mau.fi/goheif v0.0.0-20260413100809-7ec7087b8d7d // indirect
 	go.mau.fi/webp v0.2.0 // indirect
 	go.mau.fi/zeroconfig v0.2.0 // indirect
 	golang.org/x/crypto v0.49.0 // indirect
@@ -78,7 +78,7 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	maunium.net/go/mautrix v0.26.5-0.20260406165923-55418022a779 // indirect
+	maunium.net/go/mautrix v0.26.5-0.20260412174310-a474411dc977 // indirect
 	mvdan.cc/xurls/v2 v2.6.0 // indirect
 )
 
