@@ -17,6 +17,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix"
+	"maunium.net/go/mautrix/crypto/ssss"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 	"maunium.net/go/mautrix/pushrules"
@@ -128,6 +129,10 @@ func (h *HiClient) handleJSONCommand(ctx context.Context, req *JSONCommand) (any
 		return jsoncmd.LoginCustom.RunCtx(ctx, req.Data, h.API.LoginCustom)
 	case jsoncmd.ReqVerify:
 		return jsoncmd.Verify.RunCtx(ctx, req.Data, h.API.Verify)
+	case jsoncmd.ReqGenerateRecoveryKey:
+		return jsoncmd.GenerateRecoveryKey.Run(req.Data, h.API.GenerateRecoveryKey)
+	case jsoncmd.ReqResetEncryption:
+		return jsoncmd.ResetEncryption.RunCtx(ctx, req.Data, h.API.ResetEncryption)
 	case jsoncmd.ReqDiscoverHomeserver:
 		return jsoncmd.DiscoverHomeserver.RunCtx(ctx, req.Data, h.API.DiscoverHomeserver)
 	case jsoncmd.ReqGetLoginFlows:
@@ -331,7 +336,7 @@ func (h *JSONAPI) JoinRoom(ctx context.Context, params *jsoncmd.JoinRoomParams) 
 			zerolog.Ctx(ctx).Warn().Msg("Invited room metadata not found for from_invite join request")
 		} else if dmUserID := invite.GetDMUserID(h.Account.UserID); dmUserID != "" {
 			err = h.ConvertToDM(ctx, invite.ID, dmUserID)
-			if err != nil {
+			if err != nil && !errors.Is(err, ErrMDirectNoOp) {
 				return nil, fmt.Errorf("failed to mark room as DM: %w", err)
 			}
 		}
@@ -441,6 +446,21 @@ func (h *JSONAPI) LoginCustom(ctx context.Context, params *jsoncmd.LoginCustomPa
 
 func (h *JSONAPI) Verify(ctx context.Context, params *jsoncmd.VerifyParams) error {
 	return h.HiClient.Verify(ctx, params.RecoveryKey)
+}
+
+func (h *JSONAPI) GenerateRecoveryKey(params *jsoncmd.GenerateRecoveryKeyParams) (*jsoncmd.RecoveryKeyResponse, error) {
+	key, err := ssss.NewKey(params.Passphrase)
+	if err != nil {
+		return nil, err
+	}
+	return &jsoncmd.RecoveryKeyResponse{
+		RecoveryKey:    key.RecoveryKey(),
+		PassphraseMeta: key.Metadata.Passphrase,
+	}, nil
+}
+
+func (h *JSONAPI) ResetEncryption(ctx context.Context, params *jsoncmd.ResetEncryptionParams) error {
+	return h.HiClient.ResetEncryption(ctx, params.RecoveryKey, params.PassphraseMeta, params.AccountPassword)
 }
 
 func (h *JSONAPI) DiscoverHomeserver(ctx context.Context, params *jsoncmd.DiscoverHomeserverParams) (*mautrix.ClientWellKnown, error) {
