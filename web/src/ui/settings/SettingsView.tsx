@@ -13,7 +13,7 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
-import { Suspense, lazy, use, useCallback, useRef, useState } from "react"
+import { Suspense, lazy, use, useCallback, useEffect, useRef, useState } from "react"
 import { ScaleLoader } from "react-spinners"
 import Client from "@/api/client.ts"
 import { getRoomAvatarThumbnailURL, getRoomAvatarURL } from "@/api/media.ts"
@@ -54,6 +54,10 @@ const makeRemover = (
 	return <button onClick={() => setPref(context, name, undefined)}><CloseIcon /></button>
 }
 
+const makeRemoverPacked = (props: PreferenceCellProps<PreferenceValueType>) => {
+	return makeRemover(props.context, props.setPref, props.name, props.value)
+}
+
 const BooleanPreferenceCell = ({ context, name, setPref, value, inheritedValue }: PreferenceCellProps<boolean>) => {
 	return <div className="preference boolean-preference">
 		<Toggle checked={value ?? inheritedValue} onChange={evt => setPref(context, name, evt.target.checked)}/>
@@ -61,23 +65,57 @@ const BooleanPreferenceCell = ({ context, name, setPref, value, inheritedValue }
 	</div>
 }
 
-const TextPreferenceCell = ({ context, name, setPref, value, inheritedValue }: PreferenceCellProps<string>) => {
+const useLocalValue = <T extends PreferenceValueType = number | string>(
+	{ context, name, setPref, value, inheritedValue }: PreferenceCellProps<T>,
+) => {
+	const realVal = value ?? inheritedValue
+	const [localVal, setLocalVal] = useState(realVal)
+	const saveTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+	useEffect(() => {
+		clearTimeout(saveTimeout.current)
+		setLocalVal(realVal)
+	}, [realVal])
+	const onChange = (evt: React.ChangeEvent<HTMLInputElement>) => {
+		if (typeof realVal === "number") {
+			setLocalVal(evt.target.valueAsNumber as T)
+		} else {
+			setLocalVal(evt.target.value as T)
+		}
+		clearTimeout(saveTimeout.current)
+		saveTimeout.current = setTimeout(() => {
+			save()
+		}, 500)
+	}
+	const save = () => {
+		clearTimeout(saveTimeout.current)
+		if (localVal !== realVal && (localVal || realVal)) {
+			setPref(context, name, localVal)
+		}
+	}
+	return [localVal, onChange, save] as const
+}
+
+const TextPreferenceCell = (props: PreferenceCellProps<string>) => {
+	const [localVal, onChange, save] = useLocalValue(props)
 	return <div className="preference string-preference">
-		<input value={value ?? inheritedValue} onChange={evt => setPref(context, name, evt.target.value)}/>
-		{makeRemover(context, setPref, name, value)}
+		<input value={localVal} onChange={onChange} onBlur={save} />
+		{makeRemoverPacked(props)}
 	</div>
 }
 
-const NumberPreferenceCell = ({ context, name, pref, setPref, value, inheritedValue }: PreferenceCellProps<number>) => {
+const NumberPreferenceCell = (props: PreferenceCellProps<number>) => {
+	const [localVal, onChange, save] = useLocalValue(props)
 	return <div className="preference number-preference">
 		<input
-			type="number"
-			min={pref.minValue}
-			max={pref.maxValue}
-			value={value ?? inheritedValue}
-			onChange={evt => setPref(context, name, evt.target.value)}
+			type={props.pref.numberType ?? "number"}
+			min={props.pref.minValue}
+			max={props.pref.maxValue}
+			value={localVal}
+			onChange={onChange}
+			onBlur={save}
+			onMouseUp={props.pref.numberType === "range" ? save : undefined}
 		/>
-		{makeRemover(context, setPref, name, value)}
+		{makeRemoverPacked(props)}
 	</div>
 }
 
@@ -108,7 +146,6 @@ interface PreferenceRowProps {
 
 const customUIPrefs = new Set([
 	"custom_css",
-	"custom_notification_sound",
 ] as (keyof Preferences)[])
 
 const PreferenceRow = ({
@@ -239,11 +276,11 @@ const CustomCSSInput = ({ setPref, room }: { setPref: SetPrefFunc, room: RoomSta
 		vscodeInitialContentRef.current = text
 		setVSCodeOpen(true)
 	}
-	const closeVSCode = useCallback(() => {
+	const closeVSCode = useEvent(() => {
 		setVSCodeOpen(false)
 		setText(vscodeContentRef.current)
 		vscodeContentRef.current = ""
-	}, [])
+	})
 	return <div className="custom-css-input">
 		<div className="header">
 			<h3>Custom CSS</h3>
@@ -552,7 +589,7 @@ const SettingsView = ({ room }: SettingsViewProps) => {
 				<div>{roomMeta.topic}</div>
 				<div className="room-buttons">
 					<button className="leave-room" onClick={onClickLeave}>Leave room</button>
-					<button className="devtools" onClick={openDevtools}>Explore room state</button>
+					<button className="devtools" onClick={openDevtools}>Open devtools</button>
 					<select onChange={evt => {
 						window.activeRoomContext?.setForceViewType(evt.target.value as RoomType)
 						closeModal()

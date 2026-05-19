@@ -269,6 +269,8 @@ func (h *HiClient) processSyncResponse(ctx context.Context, resp *mautrix.RespSy
 			if syncCtx != nil {
 				syncCtx.changedDMs = changes
 			}
+		case accountDataPerMessageProfiles:
+			h.perMessageProfiles.Store(nil)
 		}
 	}
 	if syncCtx != nil {
@@ -963,6 +965,9 @@ func (h *HiClient) processStateAndTimeline(
 				}
 				if !megolmSessionDiscarded && room.EncryptionEvent != nil {
 					megolmSessionDiscarded = h.maybeDiscardOutboundSession(ctx, membership, evt)
+				}
+				if evt.GetStateKey() == h.Account.UserID.String() && gjson.GetBytes(evt.Content.VeryRaw, "displayname").Str != ptr.Val(h.ownDisplayName.Load()) {
+					h.ownDisplayName.Store(nil)
 				}
 			} else if evt.Type == event.StateElementFunctionalMembers {
 				heroesChanged = true
