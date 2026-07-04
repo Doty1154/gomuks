@@ -38,5 +38,8 @@
 		"electron-dl": "^4.0.0",
 		"electron-squirrel-startup": "^1.0.1",
 		"update-electron-app": "^3.2.0"
+	},
+	"overrides": {
+		"extract-zip": "npm:@electron-internal/extract-zip@1.0.3"
 	}
 }
