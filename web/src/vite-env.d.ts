@@ -20,8 +20,17 @@ declare global {
 		openModal: openNonNestableModal
 		openNestableModal: openNestableModal
 		gomuksAndroid?: true
-		gomuksDesktop?: true
-		gomuksDesktopNotifications?: true
+		gomuksDesktop?: {
+			isDesktop: true
+			getTabID(): string
+			isEmbedded(): boolean
+			getDisableNotifications(): boolean
+			setNotificationCount: (count: number) => void
+			subscribeToTabs: (listener: (tabs: TabInfo[]) => void) => void
+			switchTab: (tab: string) => void
+			restartBackend: () => void
+			quitApp: () => void
+		}
 		gomuksWebWasm?: boolean
 		vapidPublicKey?: string
 	}

@@ -40,7 +40,15 @@ import {
 } from "../types"
 import { InvitedRoomStore } from "./invitedroom.ts"
 import { RoomStateStore } from "./room.ts"
-import { DirectChatSpace, RoomListFilter, Space, SpaceEdgeStore, SpaceOrphansSpace, UnreadsSpace } from "./space.ts"
+import {
+	DirectChatSpace,
+	HomeSpace,
+	RoomListFilter,
+	Space,
+	SpaceEdgeStore,
+	SpaceOrphansSpace,
+	UnreadsSpace,
+} from "./space.ts"
 
 export interface RoomListEntry {
 	room_id: RoomID
@@ -118,6 +126,7 @@ export class StateStore {
 	readonly topLevelSpaces = new NonNullCachedEventDispatcher<RoomID[]>([])
 	readonly spaceEdges: Map<RoomID, SpaceEdgeStore> = new Map()
 	readonly spaceOrphans = new SpaceOrphansSpace(this)
+	readonly homeSpace = new HomeSpace()
 	readonly directChatsSpace = new DirectChatSpace()
 	readonly unreadsSpace = new UnreadsSpace(this)
 	readonly pseudoSpaces = [
@@ -215,6 +224,7 @@ export class StateStore {
 		case "":
 		case "support.feline.policy.lists.msc.v1":
 		case "org.matrix.msc3417.call":
+		case "fi.mau.msc2545.image_pack":
 			return true
 		}
 	}
@@ -285,6 +295,7 @@ export class StateStore {
 		if (!someMeta) {
 			return
 		}
+		this.homeSpace.applyUnreads(meta, oldMeta)
 		if (this.directChatsSpace.include(someMeta)) {
 			this.directChatsSpace.applyUnreads(meta, oldMeta)
 		} else if (oldMeta && this.directChatsSpace.include(oldMeta)) {
@@ -560,7 +571,7 @@ export class StateStore {
 		if (sound) {
 			playSound(room.preferences.notification_sound, room.preferences.notification_sound_volume)
 		}
-		if (window.gomuksDesktopNotifications) {
+		if (window.gomuksDesktop?.getDisableNotifications()) {
 			// Notifications are sent by the main process
 			return
 		}
@@ -650,6 +661,7 @@ export class StateStore {
 		this.rooms.clear()
 		this.inviteRooms.clear()
 		this.spaceEdges.clear()
+		this.homeSpace.clearUnreads()
 		this.pseudoSpaces.forEach(space => space.clearUnreads())
 		this.roomList.emit([])
 		this.topLevelSpaces.emit([])
